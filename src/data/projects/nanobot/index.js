@@ -2,12 +2,12 @@ export default {
   order: 1,
   slug: 'nanobot',
   title: 'MyOpenClaw--超轻量级个人 AI Agent 助手框架',
-  course: '个人项目 · 2025.12 — 2026.03',
+  course: 'Agent',
   featured: true,
   description: '基于 Python 构建轻量级个人 AI Agent 框架，围绕 Agent Loop、工具调用、长期记忆、定时任务与多渠道接入实现完整闭环，支持 CLI、Docker 与多实例部署。',
   tags: ['Python', 'AI Agent', '工具调用', '长期记忆'],
   listTags: ['Python', 'AI Agent', '长期记忆', '多渠道接入'],
-  filters: ['Python', '人工智能'],
+  filters: ['Python', 'Agent'],
   sections: [
     {
       title: '项目概述',
