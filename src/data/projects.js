@@ -29,4 +29,4 @@ export const projects = Object.values(projectModules)
   }))
   .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
-export const projectFilterOptions = ['全部', 'C/C++', 'Python', 'SQL', 'Verilog', '图形学', '后端', '编译器', '多媒体', '人工智能'];
+export const projectFilterOptions = ['全部', 'C/C++', 'Python', 'Agent', '后端'];
