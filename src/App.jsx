@@ -533,7 +533,7 @@ function getCurrentHash() {
 }
 
 function App() {
-  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'light');
   const [hash, setHash] = useState(getCurrentHash);
 
   useEffect(() => {

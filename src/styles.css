@@ -1,5 +1,5 @@
 :root {
-  color-scheme: dark;
+  color-scheme: light;
   --bg: #25282c;
   --surface: rgba(59, 63, 68, 0.82);
   --surface-strong: #434850;
@@ -806,5 +806,4 @@ button {
     min-width: 100%;
   }
 }
-
 
