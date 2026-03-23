@@ -1,5 +1,5 @@
 export default {
-  order: 4,
+  order: 5,
   slug: 'opengl-game',
   title: 'OpenGL 游戏设计与物理引擎',
   course: '计算机图形学',

@@ -1,5 +1,5 @@
 export default {
-  order: 3,
+  order: 4,
   slug: 'medical-backend',
   title: '线上医疗系统后端',
   course: '软件工程',

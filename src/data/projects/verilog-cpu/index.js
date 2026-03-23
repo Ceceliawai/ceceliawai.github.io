@@ -1,5 +1,5 @@
 export default {
-  order: 5,
+  order: 6,
   slug: 'verilog-cpu',
   title: 'Verilog CPU 设计',
   course: '计算机组成',
