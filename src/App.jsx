@@ -236,6 +236,12 @@ function MarkdownRenderer({ content, project }) {
       continue;
     }
 
+    if (/^####\s+/.test(line)) {
+      blocks.push({ type: 'h4', content: line.replace(/^####\s+/, '') });
+      index += 1;
+      continue;
+    }
+
     if (/^###\s+/.test(line)) {
       blocks.push({ type: 'h3', content: line.replace(/^###\s+/, '') });
       index += 1;
@@ -296,7 +302,7 @@ function MarkdownRenderer({ content, project }) {
     while (
       index < lines.length &&
       lines[index].trim() &&
-      !/^(```|###\s+|##\s+|#\s+|>\s+|-\s+|\d+\.\s+)/.test(lines[index])
+      !/^(```|####\s+|###\s+|##\s+|#\s+|>\s+|-\s+|\d+\.\s+)/.test(lines[index])
     ) {
       paragraphLines.push(lines[index]);
       index += 1;
@@ -352,6 +358,7 @@ function MarkdownRenderer({ content, project }) {
         if (block.type === 'h1') return <h1 key={key}>{renderInlineMarkdown(block.content, key)}</h1>;
         if (block.type === 'h2') return <h2 key={key}>{renderInlineMarkdown(block.content, key)}</h2>;
         if (block.type === 'h3') return <h3 key={key}>{renderInlineMarkdown(block.content, key)}</h3>;
+        if (block.type === 'h4') return <h4 key={key}>{renderInlineMarkdown(block.content, key)}</h4>;
         if (block.type === 'p') return <p key={key}>{renderInlineMarkdown(block.content, key)}</p>;
         if (block.type === 'quote')
           return <blockquote key={key}>{renderInlineMarkdown(block.content, key)}</blockquote>;
