@@ -1,5 +1,5 @@
 export default {
-  order: 3,
+  order: 1,
   slug: 'nanobot',
   title: 'MyOpenClaw--超轻量级个人 AI Agent 助手框架',
   course: '个人项目 · 2025.12 — 2026.03',

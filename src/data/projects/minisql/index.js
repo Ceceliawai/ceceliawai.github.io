@@ -1,5 +1,5 @@
 export default {
-  order: 1,
+  order: 2,
   slug: 'minisql',
   title: 'MiniSQL 数据库系统',
   course: '数据库系统',
