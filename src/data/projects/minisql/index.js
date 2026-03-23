@@ -5,6 +5,7 @@ export default {
   course: '数据库系统',
   featured: true,
   description: '组队实现 MiniSQL，完成插入、删除、修改、条件查找、排序与索引加速等功能。',
+  repoUrl: 'https://gitee.com/WhiteScale/database-system_-cl_2022_-spring.git',
   tags: ['数据库', 'SQL', '系统设计'],
   listTags: ['SQL', '系统设计'],
   filters: ['SQL', 'C/C++'],
