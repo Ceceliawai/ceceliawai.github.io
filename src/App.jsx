@@ -1,5 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
+import hljs from 'highlight.js/lib/core';
+import bash from 'highlight.js/lib/languages/bash';
+import cpp from 'highlight.js/lib/languages/cpp';
+import javascript from 'highlight.js/lib/languages/javascript';
+import json from 'highlight.js/lib/languages/json';
+import python from 'highlight.js/lib/languages/python';
+import sql from 'highlight.js/lib/languages/sql';
+import 'highlight.js/styles/vs2015.css';
 import { projectFilterOptions, projects } from './data/projects';
+
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('sql', sql);
 
 const navigation = [
   { label: '首页', href: '#home' },
@@ -104,6 +119,65 @@ function resolveProjectAsset(project, assetPath) {
   return project?.detailAssets?.[normalized] || assetPath;
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function normalizeCodeLanguage(language) {
+  const normalized = String(language || '').trim().toLowerCase();
+  const aliases = {
+    c: 'cpp',
+    'c++': 'cpp',
+    cc: 'cpp',
+    cpp: 'cpp',
+    cxx: 'cpp',
+    h: 'cpp',
+    hpp: 'cpp',
+    py: 'python',
+    python: 'python',
+    js: 'javascript',
+    javascript: 'javascript',
+    node: 'javascript',
+    json: 'json',
+    sh: 'bash',
+    shell: 'bash',
+    bash: 'bash',
+    zsh: 'bash',
+    sql: 'sql',
+  };
+
+  return aliases[normalized] || normalized;
+}
+
+function highlightCode(code, language) {
+  const normalizedLanguage = normalizeCodeLanguage(language);
+
+  if (normalizedLanguage && hljs.getLanguage(normalizedLanguage)) {
+    return {
+      language: normalizedLanguage,
+      html: hljs.highlight(code, { language: normalizedLanguage }).value,
+    };
+  }
+
+  try {
+    const result = hljs.highlightAuto(code, ['cpp', 'python', 'javascript', 'json', 'bash', 'sql']);
+    return {
+      language: result.language || '',
+      html: result.value,
+    };
+  } catch {
+    return {
+      language: '',
+      html: escapeHtml(code),
+    };
+  }
+}
+
 function groupMarkdownBlocks(blocks) {
   const grouped = [];
 
@@ -136,6 +210,7 @@ function groupMarkdownBlocks(blocks) {
 
 function MarkdownRenderer({ content, project }) {
   const [lightboxImage, setLightboxImage] = useState(null);
+  const [copiedCodeKey, setCopiedCodeKey] = useState('');
   const lines = content.split(/\r?\n/);
   const blocks = [];
   let index = 0;
@@ -150,13 +225,14 @@ function MarkdownRenderer({ content, project }) {
 
     if (line.startsWith('```')) {
       const codeLines = [];
+      const language = line.replace(/^```/, '').trim();
       index += 1;
       while (index < lines.length && !lines[index].startsWith('```')) {
         codeLines.push(lines[index]);
         index += 1;
       }
       if (index < lines.length) index += 1;
-      blocks.push({ type: 'code', content: codeLines.join('\n') });
+      blocks.push({ type: 'code', content: codeLines.join('\n'), language });
       continue;
     }
 
@@ -244,6 +320,30 @@ function MarkdownRenderer({ content, project }) {
     </figure>
   );
 
+  const handleCopyCode = async (code, key) => {
+    try {
+      if (navigator?.clipboard?.writeText) {
+        await navigator.clipboard.writeText(code);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = code;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'absolute';
+        textarea.style.left = '-9999px';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      setCopiedCodeKey(key);
+      window.setTimeout(() => {
+        setCopiedCodeKey((current) => (current === key ? '' : current));
+      }, 1800);
+    } catch (error) {
+      console.error('复制代码失败', error);
+    }
+  };
+
   return (
     <div className="markdown-content">
       {groupedBlocks.map((block, blockIndex) => {
@@ -264,12 +364,35 @@ function MarkdownRenderer({ content, project }) {
               )}
             </section>
           );
-        if (block.type === 'code')
+        if (block.type === 'code') {
+          const highlighted = highlightCode(block.content, block.language);
           return (
-            <pre key={key}>
-              <code>{block.content}</code>
-            </pre>
+            <div key={key} className="code-block-shell">
+              <div className="code-block-toolbar">
+                <span className="code-block-dot red" />
+                <span className="code-block-dot yellow" />
+                <span className="code-block-dot green" />
+                <span className="code-block-language">
+                  {highlighted.language || normalizeCodeLanguage(block.language) || 'code'}
+                </span>
+                <button
+                  type="button"
+                  className="code-copy-button"
+                  onClick={() => handleCopyCode(block.content, key)}
+                  aria-label="复制代码"
+                >
+                  {copiedCodeKey === key ? '已复制' : '复制'}
+                </button>
+              </div>
+              <pre>
+                <code
+                  className={`hljs${highlighted.language ? ` language-${highlighted.language}` : ''}`}
+                  dangerouslySetInnerHTML={{ __html: highlighted.html }}
+                />
+              </pre>
+            </div>
           );
+        }
         if (block.type === 'ul')
           return (
             <ul key={key}>
