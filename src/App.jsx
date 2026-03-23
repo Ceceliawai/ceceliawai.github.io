@@ -12,7 +12,7 @@ const skills = ['C/C++', 'Python','LangGraph/Agent', 'SQL', 'Verilog HDL', 'Fast
 
 const educationList = [
   {
-    period: '2024 - 2027',
+    period: '2024.9 - 2027.6',
     title: '浙江大学 · 硕士研究生在读',
     description: '研究生二年级，浙江大学脑机智能全国重点实验室，研究方向为非侵入式脑机接口。',
     bullets: ['浙江大学', '硕士研究生在读'],
@@ -21,7 +21,7 @@ const educationList = [
     period: '2020.09 - 2024.06',
     title: '浙江大学 · 本科 · 计算机科学与技术',
     description: '系统学习计算机科学与技术核心课程，并完成多项课程项目实践。',
-    bullets: ['数据库系统', '计算机图形学', '编译原理', '软件工程', '计算机组成与多媒体技术'],
+    bullets: ['数据结构与算法','数据库系统', '计算机图形学', '编译原理', '软件工程'],
   },
 ];
 
