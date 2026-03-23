@@ -486,6 +486,24 @@ button {
   line-height: 1.08;
 }
 
+.detail-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.detail-title-row h1 {
+  margin: 10px 0 14px;
+}
+
+.detail-repo-button {
+  min-width: auto;
+  padding: 10px 16px;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
 .detail-summary {
   max-width: 760px;
   color: var(--muted);
@@ -513,6 +531,22 @@ button {
 
 .detail-chip-list {
   margin-top: 18px;
+}
+
+@media (max-width: 720px) {
+  .detail-sections {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-title-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .detail-repo-button {
+    margin-top: 0;
+  }
 }
 
 
@@ -806,4 +840,3 @@ button {
     min-width: 100%;
   }
 }
-

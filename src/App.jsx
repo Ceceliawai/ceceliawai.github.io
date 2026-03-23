@@ -268,7 +268,19 @@ function ProjectDetailPage({ project }) {
           ← 返回全部项目
         </a>
         <p className="post-meta">{project.course}</p>
-        <h1>{project.title}</h1>
+        <div className="detail-title-row">
+          <h1>{project.title}</h1>
+          {project.repoUrl ? (
+            <a
+              className="button secondary detail-repo-button"
+              href={project.repoUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              GitHub ↗
+            </a>
+          ) : null}
+        </div>
         <p className="detail-summary">{project.description}</p>
         <div className="chip-list detail-chip-list">
           {(project.listTags || project.tags).map((tag) => (
