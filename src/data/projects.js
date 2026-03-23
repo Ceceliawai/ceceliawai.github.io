@@ -9,10 +9,23 @@ const markdownModules = import.meta.glob('./projects/*/detail.md', {
   import: 'default',
 });
 
+const assetModules = import.meta.glob('./projects/*/*.{png,jpg,jpeg,gif,webp,svg,avif}', {
+  eager: true,
+  import: 'default',
+});
+
 export const projects = Object.values(projectModules)
   .map((project) => ({
     ...project,
     detailMarkdown: markdownModules[`./projects/${project.slug}/detail.md`] || '',
+    detailAssets: Object.fromEntries(
+      Object.entries(assetModules)
+        .filter(([path]) => path.startsWith(`./projects/${project.slug}/`))
+        .map(([path, url]) => {
+          const filename = path.replace(`./projects/${project.slug}/`, '');
+          return [filename, url];
+        }),
+    ),
   }))
   .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 

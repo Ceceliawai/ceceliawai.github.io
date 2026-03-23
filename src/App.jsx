@@ -94,7 +94,48 @@ function renderInlineMarkdown(text, keyPrefix = 'inline') {
   });
 }
 
-function MarkdownRenderer({ content }) {
+function resolveProjectAsset(project, assetPath) {
+  if (!assetPath) return '';
+  if (/^(https?:)?\/\//.test(assetPath) || assetPath.startsWith('/') || assetPath.startsWith('#')) {
+    return assetPath;
+  }
+
+  const normalized = assetPath.replace(/^\.\//, '');
+  return project?.detailAssets?.[normalized] || assetPath;
+}
+
+function groupMarkdownBlocks(blocks) {
+  const grouped = [];
+
+  for (let index = 0; index < blocks.length; index += 1) {
+    const block = blocks[index];
+
+    if (block.type !== 'image') {
+      grouped.push(block);
+      continue;
+    }
+
+    const images = [block];
+    let pointer = index + 1;
+    while (pointer < blocks.length && blocks[pointer].type === 'image') {
+      images.push(blocks[pointer]);
+      pointer += 1;
+    }
+
+    if (images.length >= 2) {
+      grouped.push({ type: 'gallery', images });
+      index = pointer - 1;
+      continue;
+    }
+
+    grouped.push(block);
+  }
+
+  return grouped;
+}
+
+function MarkdownRenderer({ content, project }) {
+  const [lightboxImage, setLightboxImage] = useState(null);
   const lines = content.split(/\r?\n/);
   const blocks = [];
   let index = 0;
@@ -147,6 +188,14 @@ function MarkdownRenderer({ content }) {
       continue;
     }
 
+    const imageMatch = line.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
+    if (imageMatch) {
+      const [, alt, src] = imageMatch;
+      blocks.push({ type: 'image', alt, src: resolveProjectAsset(project, src.trim()) });
+      index += 1;
+      continue;
+    }
+
     if (/^-\s+/.test(line)) {
       const items = [];
       while (index < lines.length && /^-\s+/.test(lines[index])) {
@@ -179,9 +228,25 @@ function MarkdownRenderer({ content }) {
     blocks.push({ type: 'p', content: paragraphLines.join(' ') });
   }
 
+  const groupedBlocks = groupMarkdownBlocks(blocks);
+
+  const renderImageFigure = (image, key, gallery = false) => (
+    <figure key={key} className={gallery ? 'markdown-image-block markdown-gallery-item' : 'markdown-image-block'}>
+      <button
+        type="button"
+        className="markdown-image-button"
+        onClick={() => setLightboxImage(image)}
+        aria-label={`查看图片${image.alt ? `：${image.alt}` : ''}`}
+      >
+        <img src={image.src} alt={image.alt || '项目图片'} className="markdown-image" />
+      </button>
+      {image.alt ? <figcaption>{image.alt}</figcaption> : null}
+    </figure>
+  );
+
   return (
     <div className="markdown-content">
-      {blocks.map((block, blockIndex) => {
+      {groupedBlocks.map((block, blockIndex) => {
         const key = `block-${blockIndex}`;
 
         if (block.type === 'h1') return <h1 key={key}>{renderInlineMarkdown(block.content, key)}</h1>;
@@ -190,6 +255,15 @@ function MarkdownRenderer({ content }) {
         if (block.type === 'p') return <p key={key}>{renderInlineMarkdown(block.content, key)}</p>;
         if (block.type === 'quote')
           return <blockquote key={key}>{renderInlineMarkdown(block.content, key)}</blockquote>;
+        if (block.type === 'image') return renderImageFigure(block, key);
+        if (block.type === 'gallery')
+          return (
+            <section key={key} className="markdown-gallery">
+              {block.images.map((image, imageIndex) =>
+                renderImageFigure(image, `${key}-${imageIndex}`, true),
+              )}
+            </section>
+          );
         if (block.type === 'code')
           return (
             <pre key={key}>
@@ -214,6 +288,28 @@ function MarkdownRenderer({ content }) {
           );
         return null;
       })}
+      {lightboxImage ? (
+        <div
+          className="image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={lightboxImage.alt || '图片预览'}
+          onClick={() => setLightboxImage(null)}
+        >
+          <button
+            type="button"
+            className="image-lightbox-close"
+            onClick={() => setLightboxImage(null)}
+            aria-label="关闭图片预览"
+          >
+            ×
+          </button>
+          <figure className="image-lightbox-content" onClick={(event) => event.stopPropagation()}>
+            <img src={lightboxImage.src} alt={lightboxImage.alt || '项目图片'} className="image-lightbox-image" />
+            {lightboxImage.alt ? <figcaption>{lightboxImage.alt}</figcaption> : null}
+          </figure>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -310,7 +406,7 @@ function ProjectDetailPage({ project }) {
           <article className="card markdown-card">
             <p className="post-meta">MARKDOWN</p>
             <h2>详细介绍</h2>
-            <MarkdownRenderer content={project.detailMarkdown} />
+            <MarkdownRenderer content={project.detailMarkdown} project={project} />
           </article>
         </section>
       ) : null}
