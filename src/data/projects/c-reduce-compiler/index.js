@@ -1,5 +1,5 @@
 export default {
-  order: 4,
+  order: 2,
   slug: 'c-reduce-compiler',
   title: 'C Reduce 编译器',
   course: '编译原理',
