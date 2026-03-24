@@ -208,9 +208,23 @@ function groupMarkdownBlocks(blocks) {
   return grouped;
 }
 
+function slugifyHeading(text) {
+  const plainText = String(text || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[`*_~[\](){}<>]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9\u4e00-\u9fa5-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  return plainText || 'section';
+}
+
 function MarkdownRenderer({ content, project }) {
   const [lightboxImage, setLightboxImage] = useState(null);
   const [copiedCodeKey, setCopiedCodeKey] = useState('');
+  const [tocOpen, setTocOpen] = useState(false);
   const lines = content.split(/\r?\n/);
   const blocks = [];
   let index = 0;
@@ -310,7 +324,23 @@ function MarkdownRenderer({ content, project }) {
     blocks.push({ type: 'p', content: paragraphLines.join(' ') });
   }
 
-  const groupedBlocks = groupMarkdownBlocks(blocks);
+  const headingCounts = new Map();
+  const blocksWithIds = blocks.map((block) => {
+    if (!['h1', 'h2', 'h3', 'h4'].includes(block.type)) return block;
+
+    const baseId = slugifyHeading(block.content);
+    const count = headingCounts.get(baseId) || 0;
+    headingCounts.set(baseId, count + 1);
+
+    return {
+      ...block,
+      id: count === 0 ? baseId : `${baseId}-${count + 1}`,
+      level: Number(block.type.slice(1)),
+    };
+  });
+
+  const headings = blocksWithIds.filter((block) => ['h1', 'h2', 'h3', 'h4'].includes(block.type));
+  const groupedBlocks = groupMarkdownBlocks(blocksWithIds);
 
   const renderImageFigure = (image, key, gallery = false) => (
     <figure key={key} className={gallery ? 'markdown-image-block markdown-gallery-item' : 'markdown-image-block'}>
@@ -350,96 +380,147 @@ function MarkdownRenderer({ content, project }) {
     }
   };
 
-  return (
-    <div className="markdown-content">
-      {groupedBlocks.map((block, blockIndex) => {
-        const key = `block-${blockIndex}`;
+  const handleTocJump = (headingId) => {
+    const element = document.getElementById(headingId);
+    if (!element) return;
+    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTocOpen(false);
+  };
 
-        if (block.type === 'h1') return <h1 key={key}>{renderInlineMarkdown(block.content, key)}</h1>;
-        if (block.type === 'h2') return <h2 key={key}>{renderInlineMarkdown(block.content, key)}</h2>;
-        if (block.type === 'h3') return <h3 key={key}>{renderInlineMarkdown(block.content, key)}</h3>;
-        if (block.type === 'h4') return <h4 key={key}>{renderInlineMarkdown(block.content, key)}</h4>;
-        if (block.type === 'p') return <p key={key}>{renderInlineMarkdown(block.content, key)}</p>;
-        if (block.type === 'quote')
-          return <blockquote key={key}>{renderInlineMarkdown(block.content, key)}</blockquote>;
-        if (block.type === 'image') return renderImageFigure(block, key);
-        if (block.type === 'gallery')
-          return (
-            <section key={key} className="markdown-gallery">
-              {block.images.map((image, imageIndex) =>
-                renderImageFigure(image, `${key}-${imageIndex}`, true),
-              )}
-            </section>
-          );
-        if (block.type === 'code') {
-          const highlighted = highlightCode(block.content, block.language);
-          return (
-            <div key={key} className="code-block-shell">
-              <div className="code-block-toolbar">
-                <span className="code-block-dot red" />
-                <span className="code-block-dot yellow" />
-                <span className="code-block-dot green" />
-                <span className="code-block-language">
-                  {highlighted.language || normalizeCodeLanguage(block.language) || 'code'}
-                </span>
-                <button
-                  type="button"
-                  className="code-copy-button"
-                  onClick={() => handleCopyCode(block.content, key)}
-                  aria-label="复制代码"
-                >
-                  {copiedCodeKey === key ? '已复制' : '复制'}
-                </button>
-              </div>
-              <pre>
-                <code
-                  className={`hljs${highlighted.language ? ` language-${highlighted.language}` : ''}`}
-                  dangerouslySetInnerHTML={{ __html: highlighted.html }}
-                />
-              </pre>
-            </div>
-          );
-        }
-        if (block.type === 'ul')
-          return (
-            <ul key={key}>
-              {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`}>{renderInlineMarkdown(item, `${key}-${itemIndex}`)}</li>
-              ))}
-            </ul>
-          );
-        if (block.type === 'ol')
-          return (
-            <ol key={key}>
-              {block.items.map((item, itemIndex) => (
-                <li key={`${key}-${itemIndex}`}>{renderInlineMarkdown(item, `${key}-${itemIndex}`)}</li>
-              ))}
-            </ol>
-          );
-        return null;
-      })}
-      {lightboxImage ? (
-        <div
-          className="image-lightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label={lightboxImage.alt || '图片预览'}
-          onClick={() => setLightboxImage(null)}
-        >
+  const renderHeading = (Tag, block, key) => (
+    <Tag key={key} id={block.id} className="markdown-heading">
+      <span>{renderInlineMarkdown(block.content, key)}</span>
+      <button
+        type="button"
+        className="markdown-heading-anchor"
+        onClick={() => handleTocJump(block.id)}
+        aria-label={`跳转到 ${block.content}`}
+        title="定位到该标题"
+      >
+        #
+      </button>
+    </Tag>
+  );
+
+  return (
+    <div className="markdown-shell">
+      {headings.length >= 2 ? (
+        <div className={`markdown-toc-float${tocOpen ? ' open' : ''}`}>
           <button
             type="button"
-            className="image-lightbox-close"
-            onClick={() => setLightboxImage(null)}
-            aria-label="关闭图片预览"
+            className="markdown-toc-toggle"
+            onClick={() => setTocOpen((current) => !current)}
+            aria-expanded={tocOpen}
+            aria-label="切换目录"
           >
-            ×
+            <span>目录</span>
+            <span className="markdown-toc-toggle-icon">{tocOpen ? '×' : '☰'}</span>
           </button>
-          <figure className="image-lightbox-content" onClick={(event) => event.stopPropagation()}>
-            <img src={lightboxImage.src} alt={lightboxImage.alt || '项目图片'} className="image-lightbox-image" />
-            {lightboxImage.alt ? <figcaption>{lightboxImage.alt}</figcaption> : null}
-          </figure>
+          <nav className="markdown-toc-panel" aria-label="文章目录">
+            <p className="markdown-toc-title">目录</p>
+            <ul className="markdown-toc-list">
+              {headings.map((heading) => (
+                <li key={heading.id} className={`level-${heading.level}`}>
+                  <button type="button" onClick={() => handleTocJump(heading.id)}>
+                    {heading.content}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </nav>
         </div>
       ) : null}
+
+      <div className="markdown-content">
+        {groupedBlocks.map((block, blockIndex) => {
+          const key = `block-${blockIndex}`;
+
+          if (block.type === 'h1') return renderHeading('h1', block, key);
+          if (block.type === 'h2') return renderHeading('h2', block, key);
+          if (block.type === 'h3') return renderHeading('h3', block, key);
+          if (block.type === 'h4') return renderHeading('h4', block, key);
+          if (block.type === 'p') return <p key={key}>{renderInlineMarkdown(block.content, key)}</p>;
+          if (block.type === 'quote')
+            return <blockquote key={key}>{renderInlineMarkdown(block.content, key)}</blockquote>;
+          if (block.type === 'image') return renderImageFigure(block, key);
+          if (block.type === 'gallery')
+            return (
+              <section key={key} className="markdown-gallery">
+                {block.images.map((image, imageIndex) =>
+                  renderImageFigure(image, `${key}-${imageIndex}`, true),
+                )}
+              </section>
+            );
+          if (block.type === 'code') {
+            const highlighted = highlightCode(block.content, block.language);
+            return (
+              <div key={key} className="code-block-shell">
+                <div className="code-block-toolbar">
+                  <span className="code-block-dot red" />
+                  <span className="code-block-dot yellow" />
+                  <span className="code-block-dot green" />
+                  <span className="code-block-language">
+                    {highlighted.language || normalizeCodeLanguage(block.language) || 'code'}
+                  </span>
+                  <button
+                    type="button"
+                    className="code-copy-button"
+                    onClick={() => handleCopyCode(block.content, key)}
+                    aria-label="复制代码"
+                  >
+                    {copiedCodeKey === key ? '已复制' : '复制'}
+                  </button>
+                </div>
+                <pre>
+                  <code
+                    className={`hljs${highlighted.language ? ` language-${highlighted.language}` : ''}`}
+                    dangerouslySetInnerHTML={{ __html: highlighted.html }}
+                  />
+                </pre>
+              </div>
+            );
+          }
+          if (block.type === 'ul')
+            return (
+              <ul key={key}>
+                {block.items.map((item, itemIndex) => (
+                  <li key={`${key}-${itemIndex}`}>{renderInlineMarkdown(item, `${key}-${itemIndex}`)}</li>
+                ))}
+              </ul>
+            );
+          if (block.type === 'ol')
+            return (
+              <ol key={key}>
+                {block.items.map((item, itemIndex) => (
+                  <li key={`${key}-${itemIndex}`}>{renderInlineMarkdown(item, `${key}-${itemIndex}`)}</li>
+                ))}
+              </ol>
+            );
+          return null;
+        })}
+        {lightboxImage ? (
+          <div
+            className="image-lightbox"
+            role="dialog"
+            aria-modal="true"
+            aria-label={lightboxImage.alt || '图片预览'}
+            onClick={() => setLightboxImage(null)}
+          >
+            <button
+              type="button"
+              className="image-lightbox-close"
+              onClick={() => setLightboxImage(null)}
+              aria-label="关闭图片预览"
+            >
+              ×
+            </button>
+            <figure className="image-lightbox-content" onClick={(event) => event.stopPropagation()}>
+              <img src={lightboxImage.src} alt={lightboxImage.alt || '项目图片'} className="image-lightbox-image" />
+              {lightboxImage.alt ? <figcaption>{lightboxImage.alt}</figcaption> : null}
+            </figure>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
