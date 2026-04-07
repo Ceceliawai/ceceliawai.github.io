@@ -107,25 +107,7 @@ Channel 收到消息
 → ChannelManager 分发到目标渠道
 ```
 
-### 为什么要做成循环，而不是一次调用？
-
-因为一个真正可用的 Agent 经常不是“想一下就答”，而是：
-
-- 先看文件
-- 再执行 Shell
-- 再搜索网页
-- 再整理结果
-- 还可能再去调用其他工具补充信息
-
-因此 `AgentLoop` 里采用的是 **多轮 LLM + Tool Calling** 机制：
-
-1. 先把当前上下文发给模型
-2. 如果模型返回 `tool_calls`，就逐个执行工具
-3. 把工具结果作为 `tool` message 再追加回消息序列
-4. 再次请求模型
-5. 直到模型不再请求工具，而是给出最终文本回复
-
-### 这一层我特别处理了哪些稳定性问题？
+### 稳定性处理：
 
 为了让 loop 更适合长期运行，我额外补了几类运行时策略：
 
@@ -136,7 +118,187 @@ Channel 收到消息
 - **错误响应不持久化**：避免异常输出进入历史上下文后反复诱发错误
 - **运行时上下文注入**：把时间、channel、chat_id 等元信息注入用户消息前缀，保证模型具备当前环境感知
 
-这里的目标很明确：**不是让模型“更聪明”，而是让 runtime “更稳”**。
+### 运行流程
+
+![循环](/Users/cecelia/Documents/work/website/src/data/projects/nanobot/assets/循环.png)
+
+#### 初始化：onboard
+
+运行onboard：初始化/刷新本地配置和工作区
+
+1. 检查`~/.nanobot/config.json`
+   - 如果不存在，创建一份默认配置
+   - 如果一存在提示你：
+     - y：用默认配置覆盖
+     - N：保留已有值，补上新字段
+2. 确保工作区存在`~/.nanobot/workspace`
+   - 用于存放相关模版
+3. 往工作区补充模版文件
+   - 把 agent 的人格、规则、用户信息、工具约束，从代码里拆出来，放进 workspace 里动态加载。
+
+4. 打印后续输入提示。
+
+#### 启动agentn：gateway
+
+1. **读取 config**
+2. **创建 agent loop**
+3. **连接并启动各个聊天渠道**
+   - 比如 Telegram / Discord / WhatsApp 等
+4. **启动 cron 定时任务**
+5. **启动 heartbeat 周期任务**
+   - 定时检查 HEARTBEAT.md
+6. **持续收消息、交给 agent 处理、再把回复发出去**
+
+正式开始agent循环。
+
+#### agent循环
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant U as Feishu用户
+    participant F as FeishuChannel._on_message()
+    participant B as BaseChannel._handle_message()
+    participant IB as MessageBus.inbound
+    participant A as AgentLoop.run()
+    participant D as AgentLoop._dispatch()
+    participant P as AgentLoop._process_message()
+    participant S as SessionManager
+    participant C as ContextBuilder
+    participant L as AgentLoop._run_agent_loop()
+    participant OB as MessageBus.outbound
+    participant CM as ChannelManager._dispatch_outbound()
+    participant FS as FeishuChannel.send()
+
+    U->>F: 在 Feishu 发消息：帮我总结一下这个文档
+
+    Note over F: 解析平台原始事件<br/>提取 sender_id/chat_id/content/message_id
+    F->>F: _on_message(data)
+    F->>F: 解析 message.content
+    F->>F: 构造 metadata = {message_id, chat_type, msg_type}
+
+    F->>B: _handle_message(sender_id, chat_id, content, media, metadata)
+
+    Note over B: 统一包装为 InboundMessage
+    B->>IB: publish_inbound(InboundMessage)
+
+    Note over A: gateway 已启动，agent.run() 持续监听 inbound 队列
+    A->>IB: consume_inbound()
+    IB-->>A: 取出 InboundMessage
+
+    A->>D: asyncio.create_task(_dispatch(msg))
+    D->>P: _process_message(msg)
+
+    P->>S: get_or_create(session_key)
+    Note over P,S: session_key 默认 = channel + ":" + chat_id
+
+    P->>P: maybe_consolidate_by_tokens(session)
+    P->>C: build_messages(history, current_message, channel, chat_id)
+
+    Note over C: 拼装完整上下文：<br/>AGENTS.md / SOUL.md / USER.md / TOOLS.md / MEMORY.md / history / 当前消息
+
+    P->>L: _run_agent_loop(initial_messages)
+
+    loop 如果模型需要工具
+        L->>L: 调 LLM
+        L->>L: 执行 tool call
+        L->>L: 将工具结果继续喂回模型
+    end
+
+    L-->>P: final_content, all_msgs
+    P->>S: 保存本轮消息到 session
+    P->>P: maybe_consolidate_by_tokens(session)
+
+    P-->>D: 返回 OutboundMessage
+    D->>OB: publish_outbound(response)
+
+    CM->>OB: consume_outbound()
+    OB-->>CM: 取出 OutboundMessage
+
+    CM->>FS: send(msg)
+    FS-->>U: 在 Feishu 发回回复
+
+```
+
+从头开始讲解每一步都是在干什么：
+
+1. 首先，用户在渠道里（例如飞书）发送一条消息。
+2. 渠道channel负责管理消息相关信息，包含:
+   - channel：来自哪个渠道
+   - sener_id：发送者ID，比如qq号。
+   - chat_id：属于哪个会话
+   - content：消息正文
+   - media：消息附带的媒体文件列表
+   - metadata：渠道相关的附加信息，放标准字段
+
+3. 调用BaseChannel.handle_message，封装成统一的InboudMessage类，并放入总线。
+4. agentloop.run 调用consume函数，从总线中取出消息。
+5. `_dispatch()` 负责消息处理的执行包装：把消息送入处理流程，统一处理锁、异常、取消，并将结果写回总线。
+6. `_process_message()` 负责具体业务逻辑：定位 session、构建上下文、管理记忆、保存会话等。
+7. `_run_agent_loop()` 负责单次消息处理中的推理循环：调用 LLM、执行工具、将工具结果继续反馈给 LLM，直到返回最终答案。
+
+> 为什么要设计三层解耦？
+>
+> ## 一、为了分层清晰
+>
+> 如果把所有逻辑都塞进一个函数，会混在一起：
+>
+> - bus 收发
+> - 锁
+> - 异常处理
+> - session 管理
+> - memory
+> - prompt 构建
+> - LLM 调用
+> - tool 调用
+>
+> 这样会非常难维护。
+>
+> 拆开后变成三层：
+>
+> ### 第一层：_dispatch()
+>
+> 处理“执行控制”：bus收发，锁，异常处理
+>
+> ### 第二层：_process_message()
+>
+> 处理“业务逻辑” session管理，memory，Promt构建
+>
+> ### 第三层：_run_agent_loop()
+>
+> 处理“模型推理循环”：LLMandtool调用
+>
+> 这样每层职责单一。
+>
+> ------
+>
+> ## 二、为了复用
+>
+> ### _process_message() 可以被多个入口复用
+>
+> 比如：
+>
+> - 普通用户消息
+> - system 消息
+> - process_direct() 的 CLI/cron 调用
+>
+> 它们都可以共用这套逻辑。
+>
+> ### _run_agent_loop() 也可以被复用
+>
+> 只要上下文准备好了，就可以进入推理循环。
+>
+> ------
+>
+> ## 三、为了统一错误处理和回写
+>
+> _dispatch() 统一做：
+>
+> - try/except
+> - cancelled handling
+> - publish_outbound
+>
+> 这样 _process_message() 就不用管这些基础设施细节，可以专注业务。
 
 ---
 
