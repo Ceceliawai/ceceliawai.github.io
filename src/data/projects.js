@@ -29,4 +29,7 @@ export const projects = Object.values(projectModules)
   }))
   .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
-export const projectFilterOptions = ['全部', 'C/C++', 'Python', 'Agent', '后端'];
+export const projectFilterOptions = [
+  '全部',
+  ...new Set(projects.flatMap((project) => project.filters || [])),
+];

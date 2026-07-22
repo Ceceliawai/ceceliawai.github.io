@@ -15,6 +15,12 @@
 - GitHub Actions
 - highlight.js
 
+## 博客系统文档
+
+博客模块、组件化写作方式、数据结构与后续协作约定见：
+
+- [docs/blog_system_guide.md](./docs/blog_system_guide.md)
+
 ## 本地开发
 
 ```bash
@@ -61,7 +67,11 @@ export default {
   description: '项目简介',
   repoUrl: 'https://github.com/xxx/xxx',
   tags: ['关键词1', '关键词2'],
-  listTags: ['列表标签1', '列表标签2'],
+  listTags: [
+    '列表标签1',
+    { label: '列表标签2', show: true },
+    { label: '不展示的标签', show: false },
+  ],
   filters: ['Python', '人工智能'],
   sections: [
     {
@@ -76,7 +86,9 @@ export default {
 - `slug` 要与文件夹名称保持一致。
 - `order` 越小越靠前。
 - `featured: true` 会进入首页精选项目。
-- `filters` 需要使用 `src/data/projects.js` 里已有的筛选项；如果要新增筛选分类，也要同步修改该文件里的 `projectFilterOptions`。
+- `listTags` 用于页面展示标签，支持字符串或 `{ label, show }` 对象；`show: false` 的标签不会显示在页面上。
+- 页面默认最多展示前 3 个可见标签。
+- `filters` 用于“全部项目”页顶部的筛选项，现已根据项目数据自动聚合生成，无需再手动维护 `projectFilterOptions`。
 
 ### 3. 新增 `detail.md`
 
